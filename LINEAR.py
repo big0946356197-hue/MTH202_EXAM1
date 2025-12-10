@@ -4,86 +4,78 @@ import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
-st.set_page_config(page_title="Oil Forecast Project", layout="wide")
-st.title("โครงการพยากรณ์ราคาน้ำมัน (เวอร์ชันอ่านง่าย)")
+st.set_page_config(page_title="Oil Price Forecast", layout="wide", page_icon="⛽")
 
-uploaded = st.file_uploader("อัปโหลดไฟล์ CSV ที่นี่", type=["csv"])
+st.title("⛽📈 Oil Price Forecast — Multi Company")
+st.write("พยากรณ์ราคาน้ำมัน 4 บริษัทด้วย Linear Regression")
 
-if uploaded:
+uploaded_file = st.file_uploader("📌 อัปโหลดไฟล์ CSV (รูปแบบคอลัมน์: Date, WTI, Brent, OPEC, Dubai)", type=["csv"])
 
-    df = pd.read_csv(uploaded)
+if uploaded_file:
+df = pd.read_csv(uploaded_file)
 
-    # หา column วันที่
-    date_col = None
-    for c in df.columns:
-        try:
-            pd.to_datetime(df[c])
-            date_col = c
-            break
-        except:
-            pass
+st.subheader("📊 ตารางข้อมูลราคาน้ำมัน")  
+st.dataframe(df)  
 
-    df["Year"] = pd.to_datetime(df[date_col]).dt.year
+df['Year'] = pd.to_datetime(df['Date']).dt.year  
 
-    # หาบริษัททั้งหมด (ยกเว้น date + year)
-    companies = [c for c in df.columns if c not in [date_col, "Year"]]
+companies = ['WTI', 'Brent', 'OPEC', 'Dubai']  
 
-    st.write("บริษัทที่พบ:", companies)
+n_years = st.slider("ต้องการทำนายอนาคตกี่ปี", 1, 10, 3)  
 
-    years_future = st.slider("ทำนายเพิ่ม (ปี)", 1, 10, 3)
+fig, ax = plt.subplots(figsize=(12,6))  
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+forecast_list = []  
 
-    forecast_all = []
+for comp in companies:  
+    X = df[['Year']]  
+    y = df[comp]  
 
-    for comp in companies:
+    model = LinearRegression()  
+    model.fit(X, y)  
 
-        # เตรียมข้อมูล
-        X = df[["Year"]]
-        y = df[comp]
+    y_pred = model.predict(X)  
 
-        # โมเดล
-        model = LinearRegression()
-        model.fit(X, y)
+    last_year = df['Year'].max()  
+    future_years = np.arange(last_year+1, last_year+n_years+1).reshape(-1,1)  
+    future_pred = model.predict(future_years)  
 
-        # ทำนายปัจจุบัน
-        pred_now = model.predict(X)
+    future_df = pd.DataFrame({  
+        "Company": comp,  
+        "Year": future_years.flatten(),  
+        "Predicted Price": future_pred  
+    })  
+    forecast_list.append(future_df)  
 
-        # ทำนายอนาคต
-        last_year = df["Year"].max()
-        future_years = np.arange(last_year+1, last_year+years_future+1)
-        pred_future = model.predict(future_years.reshape(-1, 1))
+    ax.scatter(df['Year'], y, s=100, label=f"{comp} Actual")  
+    ax.plot(df['Year'], y_pred, '--', label=f"{comp} Trend")  
+    ax.scatter(future_years, future_pred, marker="^", s=140, label=f"{comp} Forecast")  
 
-        # เก็บผล
-        forecast_all.append(pd.DataFrame({
-            "Company": comp,
-            "Year": future_years,
-            "Forecast": pred_future
-        }))
+result_all = pd.concat(forecast_list)  
 
-        # วาดให้ดูง่าย --------------------------
-        ax.plot(df["Year"], y, "o", label=f"{comp} (จริง)")      # จุดจริง
-        ax.plot(df["Year"], pred_now, "-", alpha=0.6)            # เส้นแนวโน้ม
-        ax.plot(future_years, pred_future, "--", label=f"{comp} (อนาคต)")  # อนาคต
-        # ---------------------------------------
+st.subheader("🔮 ผลการพยากรณ์ราคาน้ำมัน")  
+st.dataframe(result_all.reset_index(drop=True))  
 
-    ax.set_title("การพยากรณ์ราคาน้ำมัน (ดูง่าย ไม่รก)")
-    ax.set_xlabel("ปี")
-    ax.set_ylabel("ราคา")
+ax.set_title("Oil Price Forecast Comparison")  
+ax.set_xlabel("Year")  
+ax.set_ylabel("Price (USD per barrel)")  
+ax.grid(True, linestyle='--', alpha=0.5)  
+ax.legend()  
+st.pyplot(fig)  
 
-    ax.grid(True, linestyle="--", alpha=0.3)
-
-    # Legend มุมบนขวา
-    ax.legend(loc="upper right", fontsize=8)
-
-    plt.tight_layout()
-    st.pyplot(fig)
-
-    # รวมผลลัพธ์
-    output_df = pd.concat(forecast_all)
-    st.write("ผลการทำนาย")
-    st.dataframe(output_df)
+csv = result_all.to_csv(index=False).encode("utf-8")  
+st.download_button(  
+    label="📥 ดาวน์โหลดผลการพยากรณ์ (CSV)",  
+    data=csv,  
+    file_name="forecast_results.csv",  
+    mime="text/csv"  
+)
 
 else:
-    st.info("อัปโหลดไฟล์ก่อนเริ่มทำงานครับ")
+st.info("⬆ กรุณาอัปโหลดไฟล์ CSV ก่อน")
 
+ขออันนี้ด้วย
+
+วิธีการเอาไปทำเว็บเหมือนอันบน
+
+แบบมันต้องมี request เม้นอะไร
