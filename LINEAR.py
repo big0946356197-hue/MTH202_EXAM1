@@ -1,26 +1,19 @@
-import streamlit as st
+ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.linear_model import LinearRegression
 
 st.set_page_config(page_title="Oil Forecast Project", layout="wide")
-
-st.title("โครงการพยากรณ์ราคาน้ำมัน ")
-st.write("ทำโดยนิสิต : ตัวอย่างโปรเจควิชา MTH202")
-
-st.write("**อัปโหลดไฟล์ CSV ที่มีข้อมูลราคาน้ำมันรายปี**")
-st.write("ไฟล์ต้องมีคอลัมน์วันที่ แล้วก็ราคาน้ำมันหลายๆบริษัท")
+st.title("โครงการพยากรณ์ราคาน้ำมัน (เวอร์ชันอ่านง่าย)")
 
 uploaded = st.file_uploader("อัปโหลดไฟล์ CSV ที่นี่", type=["csv"])
 
 if uploaded:
 
     df = pd.read_csv(uploaded)
-    st.write("**ข้อมูลที่อ่านได้จากไฟล์**")
-    st.dataframe(df)
 
-    # หาคอลัมน์ที่เป็นวันที่
+    # หา column วันที่
     date_col = None
     for c in df.columns:
         try:
@@ -30,68 +23,66 @@ if uploaded:
         except:
             pass
 
-    if date_col is None:
-        st.error("หา column วันที่ไม่เจอครับ ลองเช็คไฟล์ CSV อีกที")
-        st.stop()
-
-    st.write("คอลัมน์วันที่คือ:", date_col)
-
     df["Year"] = pd.to_datetime(df[date_col]).dt.year
 
-    # คอลัมน์บริษัทน้ำมัน
+    # หาบริษัททั้งหมด (ยกเว้น date + year)
     companies = [c for c in df.columns if c not in [date_col, "Year"]]
 
-    st.write("บริษัทที่พบในไฟล์:", companies)
+    st.write("บริษัทที่พบ:", companies)
 
-    years_future = st.slider("ต้องการทำนายเพิ่มอีกกี่ปี?", 1, 10, 3)
+    years_future = st.slider("ทำนายเพิ่ม (ปี)", 1, 10, 3)
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    results = []
+
+    forecast_all = []
 
     for comp in companies:
+
+        # เตรียมข้อมูล
         X = df[["Year"]]
         y = df[comp]
 
-        # โมเดลง่ายๆ Linear Regression
+        # โมเดล
         model = LinearRegression()
         model.fit(X, y)
 
-        # ค่าที่มีอยู่จริง
+        # ทำนายปัจจุบัน
         pred_now = model.predict(X)
 
-        # ที่ทำนายได้
-        last = df["Year"].max()
-        future_years = np.arange(last+1, last+years_future+1)
+        # ทำนายอนาคต
+        last_year = df["Year"].max()
+        future_years = np.arange(last_year+1, last_year+years_future+1)
         pred_future = model.predict(future_years.reshape(-1, 1))
 
         # เก็บผล
-        tmp = pd.DataFrame({
+        forecast_all.append(pd.DataFrame({
             "Company": comp,
             "Year": future_years,
             "Forecast": pred_future
-        })
-        results.append(tmp)
+        }))
 
-        # วาดกราฟ
-        ax.plot(df["Year"], y, "o-", label=f"{comp} (จริง)")
-        ax.plot(df["Year"], pred_now, "--", label=f"{comp} (แนวโน้ม)")
-        ax.plot(future_years, pred_future, "x-", label=f"{comp} (อนาคต)")
+        # วาดให้ดูง่าย --------------------------
+        ax.plot(df["Year"], y, "o", label=f"{comp} (จริง)")      # จุดจริง
+        ax.plot(df["Year"], pred_now, "-", alpha=0.6)            # เส้นแนวโน้ม
+        ax.plot(future_years, pred_future, "--", label=f"{comp} (อนาคต)")  # อนาคต
+        # ---------------------------------------
 
-    ax.set_title("กราฟพยากรณ์ราคาน้ำมันแบบง่ายๆ")
+    ax.set_title("การพยากรณ์ราคาน้ำมัน (ดูง่าย ไม่รก)")
     ax.set_xlabel("ปี")
     ax.set_ylabel("ราคา")
-    ax.legend()
+
     ax.grid(True, linestyle="--", alpha=0.3)
 
+    # Legend มุมบนขวา
+    ax.legend(loc="upper right", fontsize=8)
+
+    plt.tight_layout()
     st.pyplot(fig)
 
-    # รวมผลทุกบริษัท
-    df_out = pd.concat(results)
-    st.write("ผลการพยากรณ์")
-    st.dataframe(df_out)
-
-    csv = df_out.to_csv(index=False).encode("utf-8")
-    st.download_button("ดาวน์โหลดผลลัพธ์ (CSV)", csv, "forecast_output.csv")
+    # รวมผลลัพธ์
+    output_df = pd.concat(forecast_all)
+    st.write("ผลการทำนาย")
+    st.dataframe(output_df)
 
 else:
-    st.info("กรุณาอัปโหลดไฟล์ก่อนเริ่มทำงานครับ")
+    st.info("อัปโหลดไฟล์ก่อนเริ่มทำงานครับ")
